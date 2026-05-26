@@ -31,6 +31,8 @@ export interface User {
   email: string;
   documentNumber: string;
   specialty: string;
+  experience?: string;
+  education?: string;
   createdAt: string;
 }
 

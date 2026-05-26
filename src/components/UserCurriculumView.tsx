@@ -1,14 +1,18 @@
-import { useMemo } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 import type { Certificate, Exam, ExamResult, User } from '../types';
 import { useCertificates } from '../hooks/useCertificates';
 import { IconBookOpen } from './icons';
 import { getPublicCertificateUrl } from '../lib/certificates';
+import { getPublicCurriculumUrl } from '../lib/curriculum';
 
 interface UserCurriculumViewProps {
   user: User;
   exams: Exam[];
   results: ExamResult[];
-  onBackToExams: () => void;
+  currentUserId?: string;
+  isPublicView?: boolean;
+  onUpdateUser?: (updatedUser: User) => void;
+  onBackToExams?: () => void;
 }
 
 function formatDate(iso: string) {
@@ -19,10 +23,18 @@ function formatDate(iso: string) {
   });
 }
 
-export default function UserCurriculumView({ user, exams, results, onBackToExams }: UserCurriculumViewProps) {
+export default function UserCurriculumView({
+  user,
+  exams,
+  results,
+  currentUserId,
+  isPublicView = false,
+  onUpdateUser,
+  onBackToExams,
+}: UserCurriculumViewProps) {
   const { getCertificatesByUserId, getCertificateByCode } = useCertificates();
-  const certificates: Certificate[] = useMemo(() => getCertificatesByUserId(user.id), [getCertificatesByUserId, user.id]);
-  const passedCertificates = certificates; // en esta app, solo guardamos certificados al aprobar
+  const [message, setMessage] = useState('');
+  const canEdit = !isPublicView && currentUserId === user.id && Boolean(onUpdateUser);
 
   const examById = useMemo(() => {
     const map = new Map<string, Exam>();
@@ -30,11 +42,37 @@ export default function UserCurriculumView({ user, exams, results, onBackToExams
     return map;
   }, [exams]);
 
+  const certificates: Certificate[] = useMemo(() => {
+    return getCertificatesByUserId(user.id)
+      .filter(cert => examById.has(cert.examId))
+      .sort((a, b) => +new Date(b.issuedAt) - +new Date(a.issuedAt));
+  }, [getCertificatesByUserId, user.id, examById]);
+
+  const publicCurriculumUrl = useMemo(
+    () => getPublicCurriculumUrl(user.documentNumber),
+    [user.documentNumber]
+  );
+
   const userResults = useMemo(() => {
     return results
       .filter(r => r.userId === user.id)
       .sort((a, b) => +new Date(b.completedAt) - +new Date(a.completedAt));
   }, [results, user.id]);
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canEdit || !onUpdateUser) return;
+
+    const data = new FormData(event.currentTarget);
+    const updatedUser: User = {
+      ...user,
+      experience: String(data.get('experience') ?? '').trim(),
+      education: String(data.get('education') ?? '').trim(),
+    };
+
+    onUpdateUser(updatedUser);
+    setMessage('Curriculum actualizado correctamente.');
+  };
 
   return (
     <div className="page" style={{ maxWidth: 980, margin: '0 auto' }}>
@@ -43,70 +81,134 @@ export default function UserCurriculumView({ user, exams, results, onBackToExams
           <IconBookOpen />
         </div>
         <div>
-          <h2 className="page-header__title">Currículum</h2>
-          <p className="page-header__subtitle">Certificados digitales disponibles</p>
-        </div>
-        <div style={{ marginLeft: 'auto' }}>
-          <button className="btn btn--secondary btn--sm" onClick={onBackToExams}>
-            Volver a exámenes
-          </button>
-        </div>
-      </div>
-
-      {passedCertificates.length === 0 ? (
-        <div className="empty-state empty-state--full">
-          <IconBookOpen />
-          <h3>Sin certificados todavía</h3>
-          <p>Aprueba algún examen para que el certificado aparezca aquí.</p>
-          <p style={{ fontSize: '0.82rem', marginTop: 6, color: 'var(--color-text-muted)' }}>
-            (Este es el requisito de visualización desde el “currículum”.)
+          <h2 className="page-header__title">Curriculum digital</h2>
+          <p className="page-header__subtitle">
+            {isPublicView
+              ? 'Perfil publico del usuario y certificaciones obtenidas'
+              : 'Gestion de perfil profesional y certificaciones'}
           </p>
         </div>
-      ) : (
-        <div className="exam-grid">
-          {passedCertificates.map(cert => (
-            <div key={cert.code} className="exam-card" style={{ padding: 22 }}>
-              <div className="exam-card__header">
-                <span className="exam-card__type-badge badge--green" style={{ fontSize: '0.76rem' }}>
-                  Certificado
-                </span>
-                <span className="question-item__badge" style={{ background: 'rgba(37,99,235,0.08)' }}>
-                  {formatDate(cert.issuedAt)}
-                </span>
+        {onBackToExams && (
+          <div style={{ marginLeft: 'auto' }}>
+            <button className="btn btn--secondary btn--sm" onClick={onBackToExams}>
+              Volver a examenes
+            </button>
+          </div>
+        )}
+      </div>
+
+      <section className="curriculum-layout">
+        <div className="card" style={{ gap: 14 }}>
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 900 }}>Perfil publico</h3>
+          <p style={{ fontSize: '0.84rem', color: 'var(--color-text-muted)' }}>
+            URL unica:{' '}
+            <a href={publicCurriculumUrl} target="_blank" rel="noreferrer" style={{ wordBreak: 'break-all' }}>
+              {publicCurriculumUrl}
+            </a>
+          </p>
+
+          <div style={{ display: 'grid', gap: 4 }}>
+            <p style={{ fontWeight: 900, fontSize: '1.1rem' }}>{user.fullName}</p>
+            <p>{user.specialty}</p>
+            <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>
+              {user.email} · DNI {user.documentNumber}
+            </p>
+          </div>
+
+          <div style={{ marginTop: 6 }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: 8 }}>Certificaciones obtenidas</h3>
+            {certificates.length === 0 ? (
+              <p className="form-hint">Aun no tiene certificados aprobados.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: 10 }}>
+                {certificates.map(cert => {
+                  const exam = examById.get(cert.examId);
+                  return (
+                    <article
+                      key={cert.code}
+                      style={{
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius)',
+                        padding: 12,
+                        background: 'var(--color-bg)',
+                      }}
+                    >
+                      <p style={{ fontWeight: 800 }}>{exam?.title ?? cert.examName}</p>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                        Codigo: {cert.code}
+                      </p>
+                      <a href={cert.publicUrl} style={{ fontSize: '0.86rem' }} target="_blank" rel="noreferrer">
+                        Ver certificado publico
+                      </a>
+                    </article>
+                  );
+                })}
               </div>
+            )}
+          </div>
+        </div>
 
-              <h3 className="exam-card__title" style={{ marginTop: 2 }}>
-                {cert.examName}
-              </h3>
+        <div className="card" style={{ gap: 14 }}>
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 900 }}>
+            {canEdit ? 'Edicion controlada del curriculum' : 'Experiencia y formacion academica'}
+          </h3>
 
-              <div style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)', padding: 12 }}>
-                <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Código</p>
-                <p style={{ fontFamily: 'monospace', fontWeight: 700, letterSpacing: '0.05em', wordBreak: 'break-all' }}>
-                  {cert.code}
+          {canEdit ? (
+            <form className="form-group" onSubmit={handleSubmit}>
+              <label className="form-label" htmlFor="experience">
+                Experiencia laboral
+              </label>
+              <textarea
+                id="experience"
+                name="experience"
+                className="form-textarea"
+                rows={5}
+                defaultValue={user.experience ?? ''}
+                placeholder="Ej: Desarrollador web freelance, soporte tecnico, proyectos universitarios"
+              />
+
+              <label className="form-label" htmlFor="education">
+                Formacion academica
+              </label>
+              <textarea
+                id="education"
+                name="education"
+                className="form-textarea"
+                rows={5}
+                defaultValue={user.education ?? ''}
+                placeholder="Ej: Ingenieria de Sistemas, cursos de desarrollo web y certificaciones"
+              />
+
+              <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
+                <button className="btn btn--primary" type="submit">
+                  Guardar curriculum
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div style={{ background: 'var(--color-bg)', borderRadius: 'var(--radius)', padding: 12, border: '1px solid var(--color-border)' }}>
+                <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>Experiencia laboral</p>
+                <p style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>
+                  {user.experience?.trim() || 'Sin informacion registrada.'}
                 </p>
               </div>
-
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
-                <a className="btn btn--primary btn--sm" href={cert.publicUrl} style={{ textDecoration: 'none' }}>
-                  Ver certificado público
-                </a>
-                <a
-                  className="btn btn--secondary btn--sm"
-                  href={cert.pdfDataUrl}
-                  download={`certificado_${cert.code}.pdf`}
-                  style={{ textDecoration: 'none' }}
-                >
-                  Descargar PDF
-                </a>
+              <div style={{ background: 'var(--color-bg)', borderRadius: 'var(--radius)', padding: 12, border: '1px solid var(--color-border)' }}>
+                <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>Formacion academica</p>
+                <p style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>
+                  {user.education?.trim() || 'Sin informacion registrada.'}
+                </p>
               </div>
-
-              <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: 10, wordBreak: 'break-all' }}>
-                URL: {cert.publicUrl}
-              </p>
             </div>
-          ))}
+          )}
+
+          {message && (
+            <p className="alert" style={{ background: '#dcfce7', color: '#166534', borderLeft: '3px solid #16a34a' }}>
+              {message}
+            </p>
+          )}
         </div>
-      )}
+      </section>
 
       <div style={{ marginTop: 22 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>

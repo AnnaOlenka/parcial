@@ -505,6 +505,19 @@ body {
 .exam-card__footer { display: flex; justify-content: flex-end; }
 .exam-card__date { font-size: 0.75rem; color: var(--color-text-muted); }
 
+/* ── Curriculum ── */
+.curriculum-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+}
+
+@media (max-width: 900px) {
+  .curriculum-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Empty state ── */
 .empty-state {
   display: flex;

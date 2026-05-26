@@ -22,10 +22,14 @@ export function useUsers() {
     });
   };
 
+  const updateUser = (updatedUser: User) => {
+    setUsers(prev => prev.map(user => (user.id === updatedUser.id ? updatedUser : user)));
+  };
+
   const getUserById = (id: string) => users.find(u => u.id === id);
 
   const getUserByDocument = (documentNumber: string) =>
     users.find(u => u.documentNumber === documentNumber);
 
-  return { users, addUser, getUserById, getUserByDocument };
+  return { users, addUser, updateUser, getUserById, getUserByDocument };
 }

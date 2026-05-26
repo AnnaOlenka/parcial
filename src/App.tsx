@@ -22,7 +22,7 @@ type UserView = 'login' | 'select-exam' | 'take-exam' | 'view-result' | 'curricu
 
 export default function App() {
   const { exams, saveExam, deleteExam } = useExams();
-  const { users, addUser } = useUsers();
+  const { users, addUser, updateUser, getUserByDocument } = useUsers();
   const { results, saveResult } = useExamResults();
   const { certificates, saveCertificate, getCertificateByCode } = useCertificates();
 
@@ -40,12 +40,26 @@ export default function App() {
 
   // Vista pública del certificado vía `hash`: #/certificado/{code}
   const [publicCertificateCode, setPublicCertificateCode] = useState<string | null>(null);
+  const [publicCurriculumDocument, setPublicCurriculumDocument] = useState<string | null>(null);
 
   const parsePublicCertificateCode = () => {
     const hash = window.location.hash || '';
-    const match = hash.match(/^#\/certificado\/(.+)$/);
-    if (!match) return setPublicCertificateCode(null);
-    setPublicCertificateCode(decodeURIComponent(match[1]));
+    const certificateMatch = hash.match(/^#\/certificado\/(.+)$/);
+    if (certificateMatch) {
+      setPublicCertificateCode(decodeURIComponent(certificateMatch[1]));
+      setPublicCurriculumDocument(null);
+      return;
+    }
+
+    const curriculumMatch = hash.match(/^#\/perfil\/(.+)$/);
+    if (curriculumMatch) {
+      setPublicCurriculumDocument(decodeURIComponent(curriculumMatch[1]));
+      setPublicCertificateCode(null);
+      return;
+    }
+
+    setPublicCertificateCode(null);
+    setPublicCurriculumDocument(null);
   };
 
   // Sin `react-router`, simulamos el acceso público con `window.location.hash`.
@@ -110,6 +124,10 @@ export default function App() {
   };
   const handleBackToExams = () => { setExamToTake(undefined); setViewingResult(undefined); setUserView('select-exam'); };
   const handleLogout = () => { setCurrentUser(undefined); setExamToTake(undefined); setViewingResult(undefined); setUserView('login'); };
+  const handleUpdateCurrentUser = (updatedUser: User) => {
+    updateUser(updatedUser);
+    setCurrentUser(prev => (prev && prev.id === updatedUser.id ? updatedUser : prev));
+  };
 
   const handleModeChange = (newMode: AppMode) => {
     setMode(newMode);
@@ -123,6 +141,9 @@ export default function App() {
   const handleBackToExamsManagement = () => setCommitteeView('list');
 
   const userResults = currentUser ? results.filter(r => r.userId === currentUser.id) : [];
+  const publicCurriculumUser = publicCurriculumDocument
+    ? getUserByDocument(publicCurriculumDocument)
+    : undefined;
 
   return (
     <div className="app">
@@ -134,6 +155,41 @@ export default function App() {
             setPublicCertificateCode(null);
           }}
         />
+      ) : publicCurriculumDocument ? (
+        publicCurriculumUser ? (
+          <UserCurriculumView
+            user={publicCurriculumUser}
+            exams={exams}
+            results={results}
+            currentUserId={currentUser?.id}
+            isPublicView
+            onBackToExams={() => {
+              window.location.hash = '';
+              setPublicCurriculumDocument(null);
+            }}
+          />
+        ) : (
+          <main className="app-main">
+            <div className="card" style={{ maxWidth: 760, margin: '0 auto' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>Perfil publico no encontrado</h2>
+              <p style={{ color: 'var(--color-text-muted)' }}>
+                No existe ningun usuario con el documento indicado en la URL publica.
+              </p>
+              <div>
+                <button
+                  className="btn btn--secondary"
+                  type="button"
+                  onClick={() => {
+                    window.location.hash = '';
+                    setPublicCurriculumDocument(null);
+                  }}
+                >
+                  Volver al inicio
+                </button>
+              </div>
+            </div>
+          </main>
+        )
       ) : (
       <>
         <header className="app-header">
@@ -254,6 +310,8 @@ export default function App() {
                 user={currentUser}
                 exams={exams}
                 results={results}
+                currentUserId={currentUser.id}
+                onUpdateUser={handleUpdateCurrentUser}
                 onBackToExams={handleBackToExams}
               />
             )}

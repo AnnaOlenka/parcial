@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { Certificate, Exam, ExamResult, User } from '../types';
 import { getPublicCertificateUrl } from '../lib/certificates';
+import { getPublicCurriculumUrl } from '../lib/curriculum';
 import { IconBookOpen, IconClipboard } from './icons';
 
 interface UsersDirectoryViewProps {
@@ -79,6 +80,12 @@ export default function UsersDirectoryView({
 
                 <h3 className="exam-card__title">{user.fullName}</h3>
                 <p className="exam-card__area">{user.email ? user.email : 'Sin correo'}</p>
+                <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', wordBreak: 'break-all' }}>
+                  Perfil publico:{' '}
+                  <a href={getPublicCurriculumUrl(user.documentNumber)} target="_blank" rel="noreferrer">
+                    {getPublicCurriculumUrl(user.documentNumber)}
+                  </a>
+                </p>
 
                 <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
                   <div style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)', padding: 12 }}>
