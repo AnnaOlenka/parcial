@@ -1,24 +1,30 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Exam, ExamResult, User } from './types';
 import { useExams } from './hooks/useExams';
 import { useUsers } from './hooks/useUsers';
 import { useExamResults } from './hooks/useExamResults';
+import { useCertificates } from './hooks/useCertificates';
 import ExamList from './components/ExamList';
 import ExamEditor from './components/ExamEditor';
 import UserLogin from './components/UserLogin';
 import ExamSelector from './components/ExamSelector';
 import ExamTaker from './components/ExamTaker';
 import ExamResultView from './components/ExamResultView';
+import PublicCertificateView from './components/PublicCertificateView';
+import UserCurriculumView from './components/UserCurriculumView';
+import UsersDirectoryView from './components/UsersDirectoryView';
+import { generateCertificatePdfDataUrl, getPublicCertificateUrl } from './lib/certificates';
 import './App.css';
 
 type AppMode = 'committee' | 'user';
-type CommitteeView = 'list' | 'new' | 'edit';
-type UserView = 'login' | 'select-exam' | 'take-exam' | 'view-result';
+type CommitteeView = 'list' | 'new' | 'edit' | 'users';
+type UserView = 'login' | 'select-exam' | 'take-exam' | 'view-result' | 'curriculum';
 
 export default function App() {
   const { exams, saveExam, deleteExam } = useExams();
   const { users, addUser } = useUsers();
   const { results, saveResult } = useExamResults();
+  const { certificates, saveCertificate, getCertificateByCode } = useCertificates();
 
   const [mode, setMode] = useState<AppMode>('committee');
 
@@ -32,6 +38,24 @@ export default function App() {
   const [examToTake, setExamToTake] = useState<Exam | undefined>(undefined);
   const [viewingResult, setViewingResult] = useState<ExamResult | undefined>(undefined);
 
+  // Vista pública del certificado vía `hash`: #/certificado/{code}
+  const [publicCertificateCode, setPublicCertificateCode] = useState<string | null>(null);
+
+  const parsePublicCertificateCode = () => {
+    const hash = window.location.hash || '';
+    const match = hash.match(/^#\/certificado\/(.+)$/);
+    if (!match) return setPublicCertificateCode(null);
+    setPublicCertificateCode(decodeURIComponent(match[1]));
+  };
+
+  // Sin `react-router`, simulamos el acceso público con `window.location.hash`.
+  useEffect(() => {
+    parsePublicCertificateCode();
+    window.addEventListener('hashchange', parsePublicCertificateCode);
+    return () => window.removeEventListener('hashchange', parsePublicCertificateCode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Committee handlers
   const handleNew = () => { setSelectedExam(undefined); setCommitteeView('new'); };
   const handleEdit = (exam: Exam) => { setSelectedExam(exam); setCommitteeView('edit'); };
@@ -41,12 +65,49 @@ export default function App() {
   // User handlers
   const handleLogin = (user: User) => { setCurrentUser(user); setUserView('select-exam'); };
   const handleSelectExam = (exam: Exam) => { setExamToTake(exam); setUserView('take-exam'); };
+
+  const ensureCertificateForResult = (result: ExamResult) => {
+    if (!result.passed || !result.certificateCode) return;
+    const already = getCertificateByCode(result.certificateCode);
+    if (already) return;
+
+    const exam = exams.find(e => e.id === result.examId);
+    const user = users.find(u => u.id === result.userId);
+    if (!exam || !user) return;
+
+    const publicUrl = getPublicCertificateUrl(result.certificateCode);
+    const pdfDataUrl = generateCertificatePdfDataUrl({
+      userName: user.fullName,
+      examName: exam.title,
+      issuedAt: result.completedAt,
+      code: result.certificateCode,
+      publicUrl,
+    });
+
+    saveCertificate({
+      code: result.certificateCode,
+      userId: user.id,
+      examId: exam.id,
+      userName: user.fullName,
+      examName: exam.title,
+      issuedAt: result.completedAt,
+      publicUrl,
+      pdfDataUrl,
+    });
+  };
+
   const handleSubmitExam = (result: ExamResult) => {
     saveResult(result);
     setViewingResult(result);
     setUserView('view-result');
+    ensureCertificateForResult(result);
   };
-  const handleViewResult = (result: ExamResult) => { setViewingResult(result); setUserView('view-result'); };
+
+  const handleViewResult = (result: ExamResult) => {
+    setViewingResult(result);
+    setUserView('view-result');
+    ensureCertificateForResult(result);
+  };
   const handleBackToExams = () => { setExamToTake(undefined); setViewingResult(undefined); setUserView('select-exam'); };
   const handleLogout = () => { setCurrentUser(undefined); setExamToTake(undefined); setViewingResult(undefined); setUserView('login'); };
 
@@ -59,11 +120,23 @@ export default function App() {
     }
   };
 
+  const handleBackToExamsManagement = () => setCommitteeView('list');
+
   const userResults = currentUser ? results.filter(r => r.userId === currentUser.id) : [];
 
   return (
     <div className="app">
-      <header className="app-header">
+      {publicCertificateCode ? (
+        <PublicCertificateView
+          code={publicCertificateCode}
+          onBack={() => {
+            window.location.hash = '';
+            setPublicCertificateCode(null);
+          }}
+        />
+      ) : (
+      <>
+        <header className="app-header">
         <div className="app-header__inner">
           <div className="app-header__brand">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
@@ -89,9 +162,37 @@ export default function App() {
               </button>
             </div>
             {mode === 'user' && currentUser && (
-              <button className="btn btn--ghost btn--sm" onClick={handleLogout} style={{ fontSize: '0.8rem' }}>
-                Cerrar sesión
-              </button>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <button
+                  className="btn btn--secondary btn--sm"
+                  onClick={() => setUserView('curriculum')}
+                  style={{ fontSize: '0.8rem' }}
+                  type="button"
+                >
+                  Currículum
+                </button>
+                <button className="btn btn--ghost btn--sm" onClick={handleLogout} style={{ fontSize: '0.8rem' }} type="button">
+                  Cerrar sesión
+                </button>
+              </div>
+            )}
+
+            {mode === 'committee' && (
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                {committeeView === 'users' ? (
+                  <button className="btn btn--secondary btn--sm" onClick={handleBackToExamsManagement} type="button">
+                    Volver a exámenes
+                  </button>
+                ) : (
+                  <button
+                    className="btn btn--secondary btn--sm"
+                    onClick={() => setCommitteeView('users')}
+                    type="button"
+                  >
+                    Usuarios
+                  </button>
+                )}
+              </div>
             )}
           </nav>
         </div>
@@ -105,6 +206,15 @@ export default function App() {
             )}
             {(committeeView === 'new' || committeeView === 'edit') && (
               <ExamEditor exam={selectedExam} onSave={handleSave} onCancel={handleCancel} />
+            )}
+            {committeeView === 'users' && (
+              <UsersDirectoryView
+                users={users}
+                exams={exams}
+                results={results}
+                certificates={certificates}
+                onBackToExams={handleBackToExamsManagement}
+              />
             )}
           </>
         )}
@@ -139,9 +249,19 @@ export default function App() {
                 onBack={handleBackToExams}
               />
             )}
+            {userView === 'curriculum' && currentUser && (
+              <UserCurriculumView
+                user={currentUser}
+                exams={exams}
+                results={results}
+                onBackToExams={handleBackToExams}
+              />
+            )}
           </>
         )}
       </main>
+      </>
+      )}
     </div>
   );
 }

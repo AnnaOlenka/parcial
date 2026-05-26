@@ -14,7 +14,12 @@ export function useUsers() {
   }, [users]);
 
   const addUser = (user: User) => {
-    setUsers(prev => [...prev, user]);
+    // Control de duplicados por documento (requisito).
+    setUsers(prev => {
+      const exists = prev.some(u => u.documentNumber === user.documentNumber);
+      if (exists) return prev;
+      return [...prev, user];
+    });
   };
 
   const getUserById = (id: string) => users.find(u => u.id === id);

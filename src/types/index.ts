@@ -49,3 +49,14 @@ export interface ExamResult {
   completedAt: string;
   certificateCode: string;
 }
+
+export interface Certificate {
+  code: string;
+  userId: string;
+  examId: string;
+  userName: string;
+  examName: string;
+  issuedAt: string; // ISO
+  publicUrl: string;
+  pdfDataUrl: string; // data:application/pdf;base64,...
+}

@@ -1,5 +1,6 @@
 import type { Exam, ExamResult, User } from '../types';
 import { IconCheck, IconX, IconClipboard } from './icons';
+import { getPublicCertificateUrl } from '../lib/certificates';
 
 interface ExamResultViewProps {
   result: ExamResult;
@@ -17,6 +18,9 @@ function formatDate(iso: string) {
 export default function ExamResultView({ result, exam, user, onBack }: ExamResultViewProps) {
   const color = result.passed ? 'var(--color-success)' : 'var(--color-danger)';
   const bgColor = result.passed ? '#f0fdf4' : '#fee2e2';
+  const publicUrl = result.passed && result.certificateCode
+    ? getPublicCertificateUrl(result.certificateCode)
+    : '';
 
   return (
     <div style={{ maxWidth: 560, margin: '0 auto' }}>
@@ -75,6 +79,20 @@ export default function ExamResultView({ result, exam, user, onBack }: ExamResul
               <p style={{ fontWeight: 700, fontFamily: 'monospace', color: 'var(--color-primary)', letterSpacing: '0.1em', fontSize: '1.05rem' }}>
                 {result.certificateCode}
               </p>
+
+              <div style={{ marginTop: 12 }}>
+                <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>URL pública para ver el certificado</p>
+                <p style={{ wordBreak: 'break-all', fontFamily: 'monospace', fontSize: '0.88rem', marginTop: 4 }}>
+                  {publicUrl}
+                </p>
+                <a
+                  href={publicUrl}
+                  className="btn btn--primary btn--sm"
+                  style={{ textDecoration: 'none', display: 'inline-flex', marginTop: 8 }}
+                >
+                  Ver certificado público
+                </a>
+              </div>
             </div>
           )}
         </div>
@@ -85,7 +103,7 @@ export default function ExamResultView({ result, exam, user, onBack }: ExamResul
             borderRadius: 'var(--radius)', padding: '12px 16px',
             fontSize: '0.88rem', color: '#15803d',
           }}>
-            Felicitaciones. Tu certificado estará disponible en tu perfil profesional.
+            Felicitaciones. Tu certificado estará disponible en tu “Currículum” y en la URL pública.
           </div>
         )}
 
