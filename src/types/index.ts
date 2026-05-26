@@ -24,3 +24,28 @@ export interface Exam {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface User {
+  id: string;
+  fullName: string;
+  email: string;
+  documentNumber: string;
+  specialty: string;
+  createdAt: string;
+}
+
+export interface UserAnswer {
+  questionId: string;
+  answer: string;
+}
+
+export interface ExamResult {
+  id: string;
+  examId: string;
+  userId: string;
+  answers: UserAnswer[];
+  score: number;
+  passed: boolean;
+  completedAt: string;
+  certificateCode: string;
+}

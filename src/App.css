@@ -530,3 +530,34 @@ body {
 
 /* ── Back btn ── */
 .back-btn { align-self: flex-start; }
+
+/* ── Mode toggle ── */
+.mode-toggle {
+  display: flex;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.mode-btn {
+  padding: 6px 14px;
+  background: transparent;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.mode-btn:not(:last-child) { border-right: 1.5px solid var(--color-border); }
+
+.mode-btn--active {
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ── Extra badges ── */
+.badge--green { background: #dcfce7; color: #15803d; }
+.badge--red { background: #fee2e2; color: var(--color-danger); }

@@ -1,0 +1,26 @@
+import { useState, useEffect } from 'react';
+import type { User } from '../types';
+
+const STORAGE_KEY = 'users';
+
+export function useUsers() {
+  const [users, setUsers] = useState<User[]>(() => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
+  }, [users]);
+
+  const addUser = (user: User) => {
+    setUsers(prev => [...prev, user]);
+  };
+
+  const getUserById = (id: string) => users.find(u => u.id === id);
+
+  const getUserByDocument = (documentNumber: string) =>
+    users.find(u => u.documentNumber === documentNumber);
+
+  return { users, addUser, getUserById, getUserByDocument };
+}
